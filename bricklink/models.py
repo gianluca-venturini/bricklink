@@ -13,7 +13,7 @@ class Part(object):
 
 class Listing(object):
 
-    def __init__(self, element_id, color_id, qty, price, name, link, store_id):
+    def __init__(self, element_id, color_id, qty, price, name, link, store_id, inventory_id):
         self.element_id = element_id
         self.color_id = color_id
         self.qty = qty
@@ -21,9 +21,10 @@ class Listing(object):
         self.name = name
         self.link = 'http://bricklink.com' + link
         self.store_id = store_id
+        self.inventory_id = inventory_id
 
     def __str__(self):
-        output = '{element_id},{color_id},{qty},{price},"{name}",{link},{store_id}'
+        output = '{element_id},{color_id},{qty},{price},"{name}",{link},{store_id},{inventory_id}'
         return output.format(**self.__dict__)
 
     def __repr__(self):
