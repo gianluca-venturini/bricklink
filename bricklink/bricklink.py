@@ -134,6 +134,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Optimize Bricklink buying process.')
     parser.add_argument('--cart', help='The cartBuyerID cookie.')
     parser.add_argument('--parts', help='Parts file.')
+    parser.add_argument('--shipping_costs', default=10, help='Shipping cost for every store.')
     parser.add_argument('--buy', help='Creates carts for you.', action='store_true')
     parser.add_argument('--optimize', help='Optimize listings.', action='store_true')
     parser.add_argument('--load', help='Load listings from the supplied xml.', action='store_true')
@@ -157,7 +158,7 @@ if __name__ == '__main__':
         listings = loaded['listings'] 
 
     if args.optimize:
-        optimal_listings = optimize(parts, listings, stores)
+        optimal_listings = optimize(parts, listings, stores, args.shipping_costs)
         pickle.dump({'optimal_listings': optimal_listings}, open('cache/optimized.p', 'wb'))
     elif args.buy:
         optimized = pickle.load(open('cache/optimized.p', 'rb'))

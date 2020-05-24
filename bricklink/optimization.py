@@ -6,27 +6,27 @@ from ortools.linear_solver import pywraplp
 from models import Listing, Part, Store
 
 
-def optimize(parts, listings, stores):
+def optimize(parts, listings, stores, shipping_costs):
     solver = pywraplp.Solver('lego_mip_optimization', pywraplp.Solver.CBC_MIXED_INTEGER_PROGRAMMING)
     infinity = solver.infinity()
 
     vars_part_listing = []
     vars_store = []
 
-    # Variables - part listings
+    # Variable - part listings
     for pi in range(len(parts)):
         for li in range(len(listings)):
             var = solver.IntVar(0.0, infinity, '{}-{}'.format(pi, li))
             vars_part_listing.append(var)
 
-    # Variables - stores
+    # Variable - stores
     for si in range(len(stores)):
         var = solver.IntVar(0.0, 1.0, 'store-{}'.format(si))
         vars_store.append(var)
 
     print('Number of variables', solver.NumVariables())
 
-    # Constraints - calculate the number of stores
+    # Constraint - calculate the number of stores
     for si in range(len(stores)):
         for li in range(len(listings)):
             if listings[li].store_id != stores[si].store_id:
@@ -40,7 +40,7 @@ def optimize(parts, listings, stores):
                     sum += vars_part_listing[index]
             solver.Add(vars_store[si] >= sum * 0.0000001)
 
-    # Constraints - minimum quantity for parts
+    # Constraint - minimum quantity for parts
     for pi, part in enumerate(parts):
         sum = None
         for li in range(len(listings)):
@@ -51,19 +51,29 @@ def optimize(parts, listings, stores):
                 sum += vars_part_listing[index]
         solver.Add(sum >= part.qty)
 
-    # Constraints - listings are associated with corresponding parts
+    # Constraint - listings are associated with corresponding parts
     for pi, part in enumerate(parts):
         for li, listing in enumerate(listings):
             if part.element_id != listing.element_id or part.color_id != listing.color_id:
                 index = to_var_index(parts, listings, pi, li)
                 solver.Add(vars_part_listing[index] == 0)
 
-    # # Constraints - dont buy more than the max quantity of the vendor
+    # # Constraint - dont buy more than the max quantity of the vendor
     # for pi in range(len(parts)):
     #     for li, listing in enumerate(listings):
     #         if part.element_id != listing.element_id or part.color_id != listing.color_id:
     #             index = to_var_index(parts, listings, pi, li)
     #             solver.Add(vars[index] == 0)
+
+    # Constraint - limited number of stores
+    sum = None
+    for si in range(len(stores)):
+        if sum is None:
+            sum = vars_store[si]
+        else:
+            sum += vars_store[si]
+    solver.Add(sum <= 10)
+    
 
     # Objective - minimize price
     sum = None
@@ -76,32 +86,30 @@ def optimize(parts, listings, stores):
                 sum = vars_part_listing[index] * listing.price
             else:
                 sum += vars_part_listing[index] * listing.price
-    solver.Minimize(sum)
 
     # # Objective - minimize stores
-    # sum = None
     # for si in range(len(stores)):
     #     if sum is None:
-    #         sum = vars_store[si]
+    #         sum = vars_store[si] * shipping_costs
     #     else:
-    #         sum += vars_store[si]
-    # solver.Minimize(sum)
+    #         sum += vars_store[si] * shipping_costs
+
+    solver.Minimize(sum)
 
     status = solver.Solve()
 
     optimal_listings = []
     if status == pywraplp.Solver.OPTIMAL:
         for pi in range(len(parts)):
+            sys.stdout.write('{}'.format(parts[pi]))
             for li in range(len(listings)):
                 solution = vars_part_listing[to_var_index(parts, listings, pi, li)].solution_value()
                 if solution > 0:
-                    sys.stdout.write('{} '.format(int(solution)))
-                else:
-                    sys.stdout.write('  ')
-                optimal_listings.append(listings[li])
+                    sys.stdout.write(' {}'.format(listings[li]))
+                    optimal_listings.append(listings[li])
             print('')
-        for si in range(len(stores)):
-            print(stores[si].store_id, vars_store[si].solution_value())
+        # for si in range(len(stores)):
+        #     print(stores[si].store_id, vars_store[si].solution_value())
         print('Solution:')
         print('Objective value =', solver.Objective().Value())
     else:
