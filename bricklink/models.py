@@ -10,6 +10,14 @@ class Part(object):
         output = '{element_id},{color_id},{qty}'
         return output.format(**self.__dict__)
 
+    def __eq__(self, other):
+        return self.element_id == other.element_id and self.color_id == other.color_id and self.qty == other.qty
+
+    @classmethod
+    def from_string(cls, s):
+        element_id, color_id, qty = s.split(',')
+        return cls(element_id, color_id, int(qty))
+
 
 class Listing(object):
 

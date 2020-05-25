@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup as soup
 
 from db import load_parts
 from models import Listing, Part, Store
-from optimization import optimize
+from optimization import optimize, pre_optimize
 
 
 class PartNotFoundError(Exception):
@@ -53,7 +53,7 @@ def get_part_listings(part):
         'sellerCountryID': 'US',
         'moneyTypeID': 1,
         'w': part.element_id,
-        # 'sellerLoc': 'C',
+        'sellerLoc': 'C',
         'searchSort': 'P',
         'sz': 500
     }
@@ -93,9 +93,19 @@ def output_purchase_to_csv(lego_set, purchase, set_id):
             f.write(str(p))
 
 
-def get_listings(xml_file):
+def get_listings(xml_file, exclude):
     listings = []
-    parts = load_parts(xml_file)
+    parts_in_file = load_parts(xml_file)
+    parts = []
+    for part in parts_in_file:
+        should_exclude = False
+        for e in exclude:
+            if Part.from_string(e) == part:
+                 should_exclude = True
+        if should_exclude:
+            continue
+        parts.append(part)
+
     for part in parts:
         listings.extend(get_part_listings(part))
     store_ids = set()
@@ -134,7 +144,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Optimize Bricklink buying process.')
     parser.add_argument('--cart', help='The cartBuyerID cookie.')
     parser.add_argument('--parts', help='Parts file.')
+    parser.add_argument('--exclude', action='append', help='Parts file.')
     parser.add_argument('--shipping_costs', default=10, help='Shipping cost for every store.')
+    parser.add_argument('--min_parts_per_store', default=50, help='Minimum amount of parts per store.')
     parser.add_argument('--buy', help='Creates carts for you.', action='store_true')
     parser.add_argument('--optimize', help='Optimize listings.', action='store_true')
     parser.add_argument('--load', help='Load listings from the supplied xml.', action='store_true')
@@ -149,7 +161,7 @@ if __name__ == '__main__':
         exit(1)
 
     if args.load:
-        parts, stores, listings = get_listings(args.parts)
+        parts, stores, listings = get_listings(args.parts, args.exclude)
         pickle.dump({'parts': parts, 'stores': stores, 'listings': listings}, open('cache/loaded.p', 'wb'))
     elif args.optimize:
         loaded = pickle.load(open('cache/loaded.p', 'rb'))
@@ -158,12 +170,12 @@ if __name__ == '__main__':
         listings = loaded['listings'] 
 
     if args.optimize:
+        parts, listings, stores = pre_optimize(parts, listings, stores, args.min_parts_per_store)
         optimal_listings = optimize(parts, listings, stores, args.shipping_costs)
         pickle.dump({'optimal_listings': optimal_listings}, open('cache/optimized.p', 'wb'))
     elif args.buy:
         optimized = pickle.load(open('cache/optimized.p', 'rb'))
-        optimal_listings = loaded['optimal_listings'] 
-
+        optimal_listings = optimized['optimal_listings'] 
 
     if args.buy:
         insert_in_cart(optimal_listings, args.cart)
